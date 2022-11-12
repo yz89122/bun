@@ -51,8 +51,8 @@ func (q *RawQuery) Scan(ctx context.Context, dest ...interface{}) error {
 		return err
 	}
 
-	query := q.db.format(q.query, q.args)
-	_, err = q.scan(ctx, q, query, model, true)
+	query, args := q.db.format(q.query, q.args)
+	_, err = q.scan(ctx, q, query, args, model, true)
 	return err
 }
 

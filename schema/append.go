@@ -10,6 +10,11 @@ import (
 )
 
 func Append(fmter Formatter, b []byte, v interface{}) []byte {
+	if _, ok := v.(QueryAppender); !ok && fmter.dialect.Prepared() {
+		*fmter.resultArgs = append(*fmter.resultArgs, v)
+		return fmter.Dialect().AppendPlaceholder(b, len(*fmter.resultArgs))
+	}
+
 	switch v := v.(type) {
 	case nil:
 		return dialect.AppendNull(b)

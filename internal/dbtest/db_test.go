@@ -87,7 +87,7 @@ func pgx(tb testing.TB) *bun.DB {
 		require.NoError(tb, sqldb.Close())
 	})
 
-	db := bun.NewDB(sqldb, pgdialect.New())
+	db := bun.NewDB(sqldb, pgdialect.New(pgdialect.WithPrepared(true)))
 	db.AddQueryHook(bundebug.NewQueryHook(
 		bundebug.WithEnabled(false),
 		bundebug.FromEnv(""),

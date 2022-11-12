@@ -360,7 +360,7 @@ func (q *UpdateQuery) Bulk() *UpdateQuery {
 		return q
 	}
 
-	set, err := q.updateSliceSet(q.db.fmter, model)
+	set, err := q.updateSliceSet(q.db.baseFmter, model)
 	if err != nil {
 		q.setErr(err)
 		return q
@@ -373,7 +373,7 @@ func (q *UpdateQuery) Bulk() *UpdateQuery {
 		Model(model).
 		TableExpr("_data").
 		Set(set).
-		Where(q.updateSliceWhere(q.db.fmter, model))
+		Where(q.updateSliceWhere(q.db.baseFmter, model))
 }
 
 func (q *UpdateQuery) updateSliceSet(
@@ -441,12 +441,15 @@ func (q *UpdateQuery) Exec(ctx context.Context, dest ...interface{}) (sql.Result
 		return nil, err
 	}
 
-	queryBytes, err := q.AppendQuery(q.db.fmter, q.db.makeQueryBytes())
+	fmter := q.db.Formatter()
+
+	queryBytes, err := q.AppendQuery(fmter, q.db.makeQueryBytes())
 	if err != nil {
 		return nil, err
 	}
 
 	query := internal.String(queryBytes)
+	args := fmter.Args()
 
 	var res sql.Result
 
@@ -456,12 +459,12 @@ func (q *UpdateQuery) Exec(ctx context.Context, dest ...interface{}) (sql.Result
 			return nil, err
 		}
 
-		res, err = q.scan(ctx, q, query, model, hasDest)
+		res, err = q.scan(ctx, q, query, args, model, hasDest)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		res, err = q.exec(ctx, q, query)
+		res, err = q.exec(ctx, q, query, args)
 		if err != nil {
 			return nil, err
 		}
@@ -500,7 +503,7 @@ func (q *UpdateQuery) FQN(column string) Ident {
 	if q.table == nil {
 		panic("UpdateQuery.SetName requires a model")
 	}
-	if q.hasTableAlias(q.db.fmter) {
+	if q.hasTableAlias(q.db.baseFmter) {
 		return Ident(q.table.Alias + "." + column)
 	}
 	return Ident(q.table.Name + "." + column)

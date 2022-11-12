@@ -40,8 +40,8 @@ type DB struct {
 
 	queryHooks []QueryHook
 
-	fmter schema.Formatter
-	flags internal.Flag
+	baseFmter schema.Formatter
+	flags     internal.Flag
 
 	stats DBStats
 }
@@ -50,10 +50,10 @@ func NewDB(sqldb *sql.DB, dialect schema.Dialect, opts ...DBOption) *DB {
 	dialect.Init(sqldb)
 
 	db := &DB{
-		DB:       sqldb,
-		dialect:  dialect,
-		features: dialect.Features(),
-		fmter:    schema.NewFormatter(dialect),
+		DB:        sqldb,
+		dialect:   dialect,
+		features:  dialect.Features(),
+		baseFmter: schema.NewFormatter(dialect),
 	}
 
 	for _, opt := range opts {
@@ -208,12 +208,12 @@ func (db *DB) clone() *DB {
 
 func (db *DB) WithNamedArg(name string, value interface{}) *DB {
 	clone := db.clone()
-	clone.fmter = clone.fmter.WithNamedArg(name, value)
+	clone.baseFmter = clone.baseFmter.WithNamedArg(name, value)
 	return clone
 }
 
 func (db *DB) Formatter() schema.Formatter {
-	return db.fmter
+	return db.baseFmter.Clone()
 }
 
 // UpdateFQN returns a fully qualified column name. For MySQL, it returns the column name with
@@ -227,7 +227,7 @@ func (db *DB) UpdateFQN(alias, column string) Ident {
 
 // HasFeature uses feature package to report whether the underlying DBMS supports this feature.
 func (db *DB) HasFeature(feat feature.Feature) bool {
-	return db.fmter.HasFeature(feat)
+	return db.baseFmter.HasFeature(feat)
 }
 
 //------------------------------------------------------------------------------
@@ -239,9 +239,9 @@ func (db *DB) Exec(query string, args ...interface{}) (sql.Result, error) {
 func (db *DB) ExecContext(
 	ctx context.Context, query string, args ...interface{},
 ) (sql.Result, error) {
-	formattedQuery := db.format(query, args)
-	ctx, event := db.beforeQuery(ctx, nil, query, args, formattedQuery, nil)
-	res, err := db.DB.ExecContext(ctx, formattedQuery)
+	formattedQuery, resultArgs := db.format(query, args)
+	ctx, event := db.beforeQuery(ctx, nil, query, resultArgs, formattedQuery, nil)
+	res, err := db.DB.ExecContext(ctx, formattedQuery, resultArgs...)
 	db.afterQuery(ctx, event, res, err)
 	return res, err
 }
@@ -253,9 +253,9 @@ func (db *DB) Query(query string, args ...interface{}) (*sql.Rows, error) {
 func (db *DB) QueryContext(
 	ctx context.Context, query string, args ...interface{},
 ) (*sql.Rows, error) {
-	formattedQuery := db.format(query, args)
-	ctx, event := db.beforeQuery(ctx, nil, query, args, formattedQuery, nil)
-	rows, err := db.DB.QueryContext(ctx, formattedQuery)
+	formattedQuery, resultArgs := db.format(query, args)
+	ctx, event := db.beforeQuery(ctx, nil, query, resultArgs, formattedQuery, nil)
+	rows, err := db.DB.QueryContext(ctx, formattedQuery, resultArgs...)
 	db.afterQuery(ctx, event, nil, err)
 	return rows, err
 }
@@ -265,15 +265,16 @@ func (db *DB) QueryRow(query string, args ...interface{}) *sql.Row {
 }
 
 func (db *DB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
-	formattedQuery := db.format(query, args)
-	ctx, event := db.beforeQuery(ctx, nil, query, args, formattedQuery, nil)
-	row := db.DB.QueryRowContext(ctx, formattedQuery)
+	formattedQuery, resultArgs := db.format(query, args)
+	ctx, event := db.beforeQuery(ctx, nil, query, resultArgs, formattedQuery, nil)
+	row := db.DB.QueryRowContext(ctx, formattedQuery, resultArgs...)
 	db.afterQuery(ctx, event, nil, row.Err())
 	return row
 }
 
-func (db *DB) format(query string, args []interface{}) string {
-	return db.fmter.FormatQuery(query, args...)
+func (db *DB) format(query string, args []interface{}) (string, []interface{}) {
+	fmter := db.Formatter()
+	return fmter.FormatQuery(query, args...), fmter.Args()
 }
 
 //------------------------------------------------------------------------------
@@ -297,9 +298,9 @@ func (db *DB) Conn(ctx context.Context) (Conn, error) {
 func (c Conn) ExecContext(
 	ctx context.Context, query string, args ...interface{},
 ) (sql.Result, error) {
-	formattedQuery := c.db.format(query, args)
-	ctx, event := c.db.beforeQuery(ctx, nil, query, args, formattedQuery, nil)
-	res, err := c.Conn.ExecContext(ctx, formattedQuery)
+	formattedQuery, resultArgs := c.db.format(query, args)
+	ctx, event := c.db.beforeQuery(ctx, nil, query, resultArgs, formattedQuery, nil)
+	res, err := c.Conn.ExecContext(ctx, formattedQuery, resultArgs...)
 	c.db.afterQuery(ctx, event, res, err)
 	return res, err
 }
@@ -307,17 +308,17 @@ func (c Conn) ExecContext(
 func (c Conn) QueryContext(
 	ctx context.Context, query string, args ...interface{},
 ) (*sql.Rows, error) {
-	formattedQuery := c.db.format(query, args)
-	ctx, event := c.db.beforeQuery(ctx, nil, query, args, formattedQuery, nil)
-	rows, err := c.Conn.QueryContext(ctx, formattedQuery)
+	formattedQuery, resultArgs := c.db.format(query, args)
+	ctx, event := c.db.beforeQuery(ctx, nil, query, resultArgs, formattedQuery, nil)
+	rows, err := c.Conn.QueryContext(ctx, formattedQuery, resultArgs...)
 	c.db.afterQuery(ctx, event, nil, err)
 	return rows, err
 }
 
 func (c Conn) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
-	formattedQuery := c.db.format(query, args)
-	ctx, event := c.db.beforeQuery(ctx, nil, query, args, formattedQuery, nil)
-	row := c.Conn.QueryRowContext(ctx, formattedQuery)
+	formattedQuery, resultArgs := c.db.format(query, args)
+	ctx, event := c.db.beforeQuery(ctx, nil, query, resultArgs, formattedQuery, nil)
+	row := c.Conn.QueryRowContext(ctx, formattedQuery, resultArgs...)
 	c.db.afterQuery(ctx, event, nil, row.Err())
 	return row
 }
@@ -543,9 +544,9 @@ func (tx Tx) Exec(query string, args ...interface{}) (sql.Result, error) {
 func (tx Tx) ExecContext(
 	ctx context.Context, query string, args ...interface{},
 ) (sql.Result, error) {
-	formattedQuery := tx.db.format(query, args)
-	ctx, event := tx.db.beforeQuery(ctx, nil, query, args, formattedQuery, nil)
-	res, err := tx.Tx.ExecContext(ctx, formattedQuery)
+	formattedQuery, resultArgs := tx.db.format(query, args)
+	ctx, event := tx.db.beforeQuery(ctx, nil, query, resultArgs, formattedQuery, nil)
+	res, err := tx.Tx.ExecContext(ctx, formattedQuery, resultArgs...)
 	tx.db.afterQuery(ctx, event, res, err)
 	return res, err
 }
@@ -557,9 +558,9 @@ func (tx Tx) Query(query string, args ...interface{}) (*sql.Rows, error) {
 func (tx Tx) QueryContext(
 	ctx context.Context, query string, args ...interface{},
 ) (*sql.Rows, error) {
-	formattedQuery := tx.db.format(query, args)
-	ctx, event := tx.db.beforeQuery(ctx, nil, query, args, formattedQuery, nil)
-	rows, err := tx.Tx.QueryContext(ctx, formattedQuery)
+	formattedQuery, resultArgs := tx.db.format(query, args)
+	ctx, event := tx.db.beforeQuery(ctx, nil, query, resultArgs, formattedQuery, nil)
+	rows, err := tx.Tx.QueryContext(ctx, formattedQuery, resultArgs...)
 	tx.db.afterQuery(ctx, event, nil, err)
 	return rows, err
 }
@@ -569,9 +570,9 @@ func (tx Tx) QueryRow(query string, args ...interface{}) *sql.Row {
 }
 
 func (tx Tx) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
-	formattedQuery := tx.db.format(query, args)
-	ctx, event := tx.db.beforeQuery(ctx, nil, query, args, formattedQuery, nil)
-	row := tx.Tx.QueryRowContext(ctx, formattedQuery)
+	formattedQuery, resultArgs := tx.db.format(query, args)
+	ctx, event := tx.db.beforeQuery(ctx, nil, query, resultArgs, formattedQuery, nil)
+	row := tx.Tx.QueryRowContext(ctx, formattedQuery, resultArgs...)
 	tx.db.afterQuery(ctx, event, nil, row.Err())
 	return row
 }
