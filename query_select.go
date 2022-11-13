@@ -799,13 +799,16 @@ func (q *SelectQuery) Rows(ctx context.Context) (*sql.Rows, error) {
 		return nil, err
 	}
 
-	queryBytes, err := q.AppendQuery(q.db.fmter, q.db.makeQueryBytes())
+	fmter := q.db.Formatter()
+
+	queryBytes, err := q.AppendQuery(fmter, q.db.makeQueryBytes())
 	if err != nil {
 		return nil, err
 	}
 
 	query := internal.String(queryBytes)
-	return q.conn.QueryContext(ctx, query)
+	args := fmter.Args()
+	return q.conn.QueryContext(ctx, query, args...)
 }
 
 func (q *SelectQuery) Exec(ctx context.Context, dest ...interface{}) (res sql.Result, err error) {
@@ -816,12 +819,15 @@ func (q *SelectQuery) Exec(ctx context.Context, dest ...interface{}) (res sql.Re
 		return nil, err
 	}
 
-	queryBytes, err := q.AppendQuery(q.db.fmter, q.db.makeQueryBytes())
+	fmter := q.db.Formatter()
+
+	queryBytes, err := q.AppendQuery(fmter, q.db.makeQueryBytes())
 	if err != nil {
 		return nil, err
 	}
 
 	query := internal.String(queryBytes)
+	args := fmter.Args()
 
 	if len(dest) > 0 {
 		model, err := q.getModel(dest)
@@ -829,12 +835,12 @@ func (q *SelectQuery) Exec(ctx context.Context, dest ...interface{}) (res sql.Re
 			return nil, err
 		}
 
-		res, err = q.scan(ctx, q, query, model, true)
+		res, err = q.scan(ctx, q, query, args, model, true)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		res, err = q.exec(ctx, q, query)
+		res, err = q.exec(ctx, q, query, args)
 		if err != nil {
 			return nil, err
 		}
@@ -863,14 +869,17 @@ func (q *SelectQuery) Scan(ctx context.Context, dest ...interface{}) error {
 		return err
 	}
 
-	queryBytes, err := q.AppendQuery(q.db.fmter, q.db.makeQueryBytes())
+	fmter := q.db.Formatter()
+
+	queryBytes, err := q.AppendQuery(fmter, q.db.makeQueryBytes())
 	if err != nil {
 		return err
 	}
 
 	query := internal.String(queryBytes)
+	args := fmter.Args()
 
-	res, err := q.scan(ctx, q, query, model, true)
+	res, err := q.scan(ctx, q, query, args, model, true)
 	if err != nil {
 		return err
 	}
@@ -917,16 +926,19 @@ func (q *SelectQuery) Count(ctx context.Context) (int, error) {
 
 	qq := countQuery{q}
 
-	queryBytes, err := qq.AppendQuery(q.db.fmter, nil)
+	fmter := q.db.Formatter()
+
+	queryBytes, err := qq.AppendQuery(fmter, nil)
 	if err != nil {
 		return 0, err
 	}
 
 	query := internal.String(queryBytes)
-	ctx, event := q.db.beforeQuery(ctx, qq, query, nil, query, q.model)
+	args := fmter.Args()
+	ctx, event := q.db.beforeQuery(ctx, qq, query, args, query, q.model)
 
 	var num int
-	err = q.conn.QueryRowContext(ctx, query).Scan(&num)
+	err = q.conn.QueryRowContext(ctx, query, args...).Scan(&num)
 
 	q.db.afterQuery(ctx, event, nil, err)
 
@@ -1009,16 +1021,19 @@ func (q *SelectQuery) Exists(ctx context.Context) (bool, error) {
 func (q *SelectQuery) selectExists(ctx context.Context) (bool, error) {
 	qq := selectExistsQuery{q}
 
-	queryBytes, err := qq.AppendQuery(q.db.fmter, nil)
+	fmter := q.db.Formatter()
+
+	queryBytes, err := qq.AppendQuery(fmter, nil)
 	if err != nil {
 		return false, err
 	}
 
 	query := internal.String(queryBytes)
-	ctx, event := q.db.beforeQuery(ctx, qq, query, nil, query, q.model)
+	args := fmter.Args()
+	ctx, event := q.db.beforeQuery(ctx, qq, query, args, query, q.model)
 
 	var exists bool
-	err = q.conn.QueryRowContext(ctx, query).Scan(&exists)
+	err = q.conn.QueryRowContext(ctx, query, args...).Scan(&exists)
 
 	q.db.afterQuery(ctx, event, nil, err)
 
@@ -1028,15 +1043,18 @@ func (q *SelectQuery) selectExists(ctx context.Context) (bool, error) {
 func (q *SelectQuery) whereExists(ctx context.Context) (bool, error) {
 	qq := whereExistsQuery{q}
 
-	queryBytes, err := qq.AppendQuery(q.db.fmter, nil)
+	fmter := q.db.Formatter()
+
+	queryBytes, err := qq.AppendQuery(fmter, nil)
 	if err != nil {
 		return false, err
 	}
 
 	query := internal.String(queryBytes)
+	args := fmter.Args()
 	ctx, event := q.db.beforeQuery(ctx, qq, query, nil, query, q.model)
 
-	res, err := q.exec(ctx, q, query)
+	res, err := q.exec(ctx, q, query, args)
 
 	q.db.afterQuery(ctx, event, nil, err)
 

@@ -304,14 +304,17 @@ func (q *CreateTableQuery) Exec(ctx context.Context, dest ...interface{}) (sql.R
 		return nil, err
 	}
 
-	queryBytes, err := q.AppendQuery(q.db.fmter, q.db.makeQueryBytes())
+	fmter := q.db.Formatter()
+
+	queryBytes, err := q.AppendQuery(fmter, q.db.makeQueryBytes())
 	if err != nil {
 		return nil, err
 	}
 
 	query := internal.String(queryBytes)
+	args := fmter.Args()
 
-	res, err := q.exec(ctx, q, query)
+	res, err := q.exec(ctx, q, query, args)
 	if err != nil {
 		return nil, err
 	}

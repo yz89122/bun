@@ -30,6 +30,9 @@ type Dialect interface {
 	AppendBytes(b []byte, bs []byte) []byte
 	AppendJSON(b, jsonb []byte) []byte
 	AppendBool(b []byte, v bool) []byte
+
+	Prepared() bool
+	AppendPlaceholder(b []byte, i int) []byte
 }
 
 //------------------------------------------------------------------------------
@@ -129,6 +132,14 @@ func (BaseDialect) AppendJSON(b, jsonb []byte) []byte {
 
 func (BaseDialect) AppendBool(b []byte, v bool) []byte {
 	return dialect.AppendBool(b, v)
+}
+
+func (BaseDialect) Prepared() bool {
+	return false
+}
+
+func (BaseDialect) AppendPlaceholder(b []byte, i int) []byte {
+	panic("not implemented")
 }
 
 //------------------------------------------------------------------------------

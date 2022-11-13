@@ -122,6 +122,8 @@ func (j *relationJoin) manyQueryMulti(where []byte, q *SelectQuery) *SelectQuery
 }
 
 func (j *relationJoin) hasManyColumns(q *SelectQuery) *SelectQuery {
+	// TODO: fix hasManyColumns
+
 	b := make([]byte, 0, 32)
 
 	joinTable := j.JoinModel.Table()
@@ -141,7 +143,7 @@ func (j *relationJoin) hasManyColumns(q *SelectQuery) *SelectQuery {
 			}
 
 			var err error
-			b, err = col.AppendQuery(q.db.fmter, b)
+			b, err = col.AppendQuery(q.db.Formatter(), b)
 			if err != nil {
 				q.setErr(err)
 				return q
@@ -166,7 +168,9 @@ func (j *relationJoin) selectM2M(ctx context.Context, q *SelectQuery) error {
 }
 
 func (j *relationJoin) m2mQuery(q *SelectQuery) *SelectQuery {
-	fmter := q.db.fmter
+	// TODO: fix m2m query
+
+	fmter := q.db.Formatter()
 
 	m2mModel := newM2MModel(j)
 	if m2mModel == nil {

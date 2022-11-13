@@ -22,14 +22,33 @@ func init() {
 	}
 }
 
+type Option interface {
+	apply(d *Dialect)
+}
+
+type optionFunc func(d *Dialect)
+
+func (f optionFunc) apply(d *Dialect) {
+	f(d)
+}
+
+var _ Option = (*optionFunc)(nil)
+
+func WithPrepared(prepared bool) Option {
+	return optionFunc(func(d *Dialect) {
+		d.prepared = prepared
+	})
+}
+
 type Dialect struct {
 	schema.BaseDialect
 
 	tables   *schema.Tables
 	features feature.Feature
+	prepared bool
 }
 
-func New() *Dialect {
+func New(opts ...Option) *Dialect {
 	d := new(Dialect)
 	d.tables = schema.NewTables(d)
 	d.features = feature.CTE |
@@ -49,6 +68,9 @@ func New() *Dialect {
 		feature.SelectExists |
 		feature.GeneratedIdentity |
 		feature.CompositeIn
+	for _, opt := range opts {
+		opt.apply(d)
+	}
 	return d
 }
 
@@ -70,6 +92,10 @@ func (d *Dialect) OnTable(table *schema.Table) {
 	for _, field := range table.FieldMap {
 		d.onField(field)
 	}
+}
+
+func (d *Dialect) Prepared() bool {
+	return d.prepared
 }
 
 func (d *Dialect) onField(field *schema.Field) {
@@ -107,4 +133,10 @@ func (d *Dialect) AppendUint32(b []byte, n uint32) []byte {
 
 func (d *Dialect) AppendUint64(b []byte, n uint64) []byte {
 	return strconv.AppendInt(b, int64(n), 10)
+}
+
+func (d *Dialect) AppendPlaceholder(b []byte, i int) []byte {
+	b = append(b, '$')
+	b = append(b, strconv.FormatInt(int64(i), 10)...)
+	return b
 }

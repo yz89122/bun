@@ -106,11 +106,14 @@ func (q *AddColumnQuery) AppendQuery(fmter schema.Formatter, b []byte) (_ []byte
 //------------------------------------------------------------------------------
 
 func (q *AddColumnQuery) Exec(ctx context.Context, dest ...interface{}) (sql.Result, error) {
-	queryBytes, err := q.AppendQuery(q.db.fmter, q.db.makeQueryBytes())
+	fmter := q.db.Formatter()
+
+	queryBytes, err := q.AppendQuery(fmter, q.db.makeQueryBytes())
 	if err != nil {
 		return nil, err
 	}
 
 	query := internal.String(queryBytes)
-	return q.exec(ctx, q, query)
+	args := fmter.Args()
+	return q.exec(ctx, q, query, args)
 }

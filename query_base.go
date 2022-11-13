@@ -136,7 +136,7 @@ func (q *baseQuery) GetTableName() string {
 	}
 
 	if len(q.tables) > 0 {
-		b, _ := q.tables[0].AppendQuery(q.db.fmter, nil)
+		b, _ := q.tables[0].AppendQuery(q.db.Formatter(), nil)
 		if len(b) < 64 {
 			return string(b)
 		}
@@ -553,15 +553,16 @@ func (q *baseQuery) scan(
 	ctx context.Context,
 	iquery Query,
 	query string,
+	args []interface{},
 	model Model,
 	hasDest bool,
 ) (sql.Result, error) {
-	ctx, event := q.db.beforeQuery(ctx, iquery, query, nil, query, q.model)
+	ctx, event := q.db.beforeQuery(ctx, iquery, query, args, query, q.model)
 
-	rows, err := q.conn.QueryContext(ctx, query)
+	rows, err := q.conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		q.db.afterQuery(ctx, event, nil, err)
-		return nil, err
+		return nil, fmt.Errorf("query: %q, args: %v: %w", query, args, err)
 	}
 	defer rows.Close()
 
@@ -585,11 +586,15 @@ func (q *baseQuery) exec(
 	ctx context.Context,
 	iquery Query,
 	query string,
+	args []interface{},
 ) (sql.Result, error) {
-	ctx, event := q.db.beforeQuery(ctx, iquery, query, nil, query, q.model)
-	res, err := q.conn.ExecContext(ctx, query)
-	q.db.afterQuery(ctx, event, nil, err)
-	return res, err
+	ctx, event := q.db.beforeQuery(ctx, iquery, query, args, query, q.model)
+	res, err := q.conn.ExecContext(ctx, query, args...)
+	q.db.afterQuery(ctx, event, res, err)
+	if err != nil {
+		return nil, fmt.Errorf("query: %q, args: %v: %w", query, args, err)
+	}
+	return res, nil
 }
 
 //------------------------------------------------------------------------------

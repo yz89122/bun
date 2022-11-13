@@ -102,14 +102,17 @@ func (q *DropColumnQuery) AppendQuery(fmter schema.Formatter, b []byte) (_ []byt
 //------------------------------------------------------------------------------
 
 func (q *DropColumnQuery) Exec(ctx context.Context, dest ...interface{}) (sql.Result, error) {
-	queryBytes, err := q.AppendQuery(q.db.fmter, q.db.makeQueryBytes())
+	fmter := q.db.Formatter()
+
+	queryBytes, err := q.AppendQuery(q.db.Formatter(), q.db.makeQueryBytes())
 	if err != nil {
 		return nil, err
 	}
 
 	query := internal.String(queryBytes)
+	args := fmter.Args()
 
-	res, err := q.exec(ctx, q, query)
+	res, err := q.exec(ctx, q, query, args)
 	if err != nil {
 		return nil, err
 	}

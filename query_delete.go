@@ -239,12 +239,15 @@ func (q *DeleteQuery) Exec(ctx context.Context, dest ...interface{}) (sql.Result
 		return nil, err
 	}
 
-	queryBytes, err := q.AppendQuery(q.db.fmter, q.db.makeQueryBytes())
+	fmter := q.db.Formatter()
+
+	queryBytes, err := q.AppendQuery(fmter, q.db.makeQueryBytes())
 	if err != nil {
 		return nil, err
 	}
 
 	query := internal.String(queryBytes)
+	args := fmter.Args()
 
 	var res sql.Result
 
@@ -254,12 +257,12 @@ func (q *DeleteQuery) Exec(ctx context.Context, dest ...interface{}) (sql.Result
 			return nil, err
 		}
 
-		res, err = q.scan(ctx, q, query, model, hasDest)
+		res, err = q.scan(ctx, q, query, args, model, hasDest)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		res, err = q.exec(ctx, q, query)
+		res, err = q.exec(ctx, q, query, args)
 		if err != nil {
 			return nil, err
 		}

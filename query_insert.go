@@ -137,10 +137,10 @@ func (q *InsertQuery) Returning(query string, args ...interface{}) *InsertQuery 
 //   - On MySQL, it generates `INSERT IGNORE INTO`.
 //   - On PostgreSQL, it generates `ON CONFLICT DO NOTHING`.
 func (q *InsertQuery) Ignore() *InsertQuery {
-	if q.db.fmter.HasFeature(feature.InsertOnConflict) {
+	if q.db.baseFmter.HasFeature(feature.InsertOnConflict) {
 		return q.On("CONFLICT DO NOTHING")
 	}
-	if q.db.fmter.HasFeature(feature.InsertIgnore) {
+	if q.db.baseFmter.HasFeature(feature.InsertIgnore) {
 		q.ignore = true
 	}
 	return q
@@ -548,12 +548,15 @@ func (q *InsertQuery) Exec(ctx context.Context, dest ...interface{}) (sql.Result
 		return nil, err
 	}
 
-	queryBytes, err := q.AppendQuery(q.db.fmter, q.db.makeQueryBytes())
+	fmter := q.db.Formatter()
+
+	queryBytes, err := q.AppendQuery(fmter, q.db.makeQueryBytes())
 	if err != nil {
 		return nil, err
 	}
 
 	query := internal.String(queryBytes)
+	args := fmter.Args()
 	var res sql.Result
 
 	if hasDest := len(dest) > 0; hasDest ||
@@ -563,12 +566,12 @@ func (q *InsertQuery) Exec(ctx context.Context, dest ...interface{}) (sql.Result
 			return nil, err
 		}
 
-		res, err = q.scan(ctx, q, query, model, hasDest)
+		res, err = q.scan(ctx, q, query, args, model, hasDest)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		res, err = q.exec(ctx, q, query)
+		res, err = q.exec(ctx, q, query, args)
 		if err != nil {
 			return nil, err
 		}

@@ -16,18 +16,32 @@ var nopFormatter = Formatter{
 }
 
 type Formatter struct {
-	dialect Dialect
-	args    *namedArgList
+	dialect    Dialect
+	args       *namedArgList
+	resultArgs *[]interface{}
 }
 
 func NewFormatter(dialect Dialect) Formatter {
 	return Formatter{
-		dialect: dialect,
+		dialect:    dialect,
+		resultArgs: new([]interface{}),
 	}
 }
 
 func NewNopFormatter() Formatter {
 	return nopFormatter
+}
+
+func (f Formatter) Clone() Formatter {
+	return Formatter{
+		dialect:    f.dialect,
+		args:       f.args.Clone(),
+		resultArgs: new([]interface{}),
+	}
+}
+
+func (f Formatter) Args() []interface{} {
+	return *f.resultArgs
 }
 
 func (f Formatter) IsNop() bool {
@@ -60,15 +74,17 @@ func (f Formatter) HasFeature(feature feature.Feature) bool {
 
 func (f Formatter) WithArg(arg NamedArgAppender) Formatter {
 	return Formatter{
-		dialect: f.dialect,
-		args:    f.args.WithArg(arg),
+		dialect:    f.dialect,
+		args:       f.args.WithArg(arg),
+		resultArgs: f.resultArgs,
 	}
 }
 
 func (f Formatter) WithNamedArg(name string, value interface{}) Formatter {
 	return Formatter{
-		dialect: f.dialect,
-		args:    f.args.WithArg(&namedArg{name: name, value: value}),
+		dialect:    f.dialect,
+		args:       f.args.WithArg(&namedArg{name: name, value: value}),
+		resultArgs: f.resultArgs,
 	}
 }
 
@@ -180,6 +196,12 @@ type NamedArgAppender interface {
 type namedArgList struct {
 	arg  NamedArgAppender
 	next *namedArgList
+}
+
+func (l *namedArgList) Clone() *namedArgList {
+	return &namedArgList{
+		next: l,
+	}
 }
 
 func (l *namedArgList) WithArg(arg NamedArgAppender) *namedArgList {
